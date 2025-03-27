@@ -32,8 +32,8 @@ static int createTcpSocket()
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
         return -1;
-
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const char*)&on, sizeof(on));
+    // SO_REUSEADDR 选项允许在套接字关闭后立即重用本地地址。常用于：1.服务器重启。2.端口重用。
 
     return sockfd;
 }
@@ -73,6 +73,7 @@ static int acceptClient(int sockfd, char* ip, int* port)
 
 static int handleCmd_OPTIONS(char* result, int cseq)
 {
+    // sprintf函数的作用是将RTSP响应消息格式化并存储到result字符串中
     sprintf(result, "RTSP/1.0 200 OK\r\n"
         "CSeq: %d\r\n"
         "Public: OPTIONS, DESCRIBE, SETUP, PLAY\r\n"
@@ -138,6 +139,8 @@ static int handleCmd_PLAY(char* result, int cseq)
     return 0;
 }
 
+// 处理客户端请求，包括OPTIONS, DESCRIBE, SETUP, PLAY
+// 参数：clientSockfd ：accept拿到的客户端socket， clientIP：客户端IP， clientPort：客户端端口
 static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
 
     char method[40];
@@ -163,9 +166,10 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
         printf("%s rBuf = %s \n", __FUNCTION__, rBuf);
 
         const char* sep = "\n";
-        char* line = strtok(rBuf, sep);
+        char* line = strtok(rBuf, sep); // 按照seq分割字符串
         while (line) {
-
+            // char *strstr(const char *haystack, const char *needle);
+            // strstr：查找字符串line中是否包含（"OPTIONS"、"DESCRIBE"、"SETUP"、"PLAY"）字符串，返回 needle 在 haystack 中的指针，如果找不到返回 nullptr。
             if (strstr(line, "OPTIONS") ||
                 strstr(line, "DESCRIBE") ||
                 strstr(line, "SETUP") ||
@@ -193,6 +197,7 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
             line = strtok(NULL, sep);
         }
 
+        // strcmp：比较两个字符串是否相等，相等返回0，不相等返回非0
         if (!strcmp(method, "OPTIONS")) {
             if (handleCmd_OPTIONS(sBuf, CSeq))
             {
@@ -229,8 +234,9 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
         printf("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
         printf("%s sBuf = %s \n", __FUNCTION__, sBuf);
 
+        // 发送RTSP响应消息，第二个参数是消息体
         send(clientSockfd, sBuf, strlen(sBuf), 0);
-
+         
 
         //开始播放，发送RTP包
         if (!strcmp(method, "PLAY")) {
@@ -240,8 +246,7 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
             printf("client port:%d\n", clientRtpPort);
 
             while (true) {
-
-
+                // todo：通过send函数发送RTP包
                 Sleep(40);
                 //usleep(40000);//1000/25 * 1000
             }
