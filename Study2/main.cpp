@@ -119,6 +119,7 @@ static char* findNextStartCode(char* buf, int len)
     return NULL;
 }
 
+// 逐帧读取H264文件（NAL数据）
 static int getFrameFromH264File(FILE* fp, char* frame, int size) {
     int rSize, frameSize;
     char* nextStartCode;
@@ -128,6 +129,7 @@ static int getFrameFromH264File(FILE* fp, char* frame, int size) {
 
     rSize = fread(frame, 1, size, fp);
 
+    // 每个NALU 之间使用  00 00 01 或者 00 00 00 01 分隔开
     if (!startCode3(frame) && !startCode4(frame))
         return -1;
 
@@ -142,7 +144,6 @@ static int getFrameFromH264File(FILE* fp, char* frame, int size) {
     {
         frameSize = (nextStartCode - frame);
         fseek(fp, frameSize - rSize, SEEK_CUR);
-
     }
 
     return frameSize;
@@ -160,7 +161,7 @@ static int rtpSendH264Frame(int serverRtpSockfd, const char* ip, int16_t port,
 
     printf("frameSize=%d \n", frameSize);
 
-    if (frameSize <= RTP_MAX_PKT_SIZE) // nalu长度小于最大包长：单一NALU单元模式
+    if (frameSize <= RTP_MAX_PKT_SIZE) // nalu长度小于最大包长：（单NALU打包：一个RTP包 包含一个完整的 NALU）
     {
 
         //*   0 1 2 3 4 5 6 7 8 9
@@ -187,15 +188,11 @@ static int rtpSendH264Frame(int serverRtpSockfd, const char* ip, int16_t port,
         //* | FU indicator  |   FU header   |   FU payload   ...  |
         //* +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-
-
         //*     FU Indicator
         //*    0 1 2 3 4 5 6 7
         //*   +-+-+-+-+-+-+-+-+
         //*   |F|NRI|  Type   |
         //*   +---------------+
-
-
 
         //*      FU Header
         //*    0 1 2 3 4 5 6 7
@@ -423,7 +420,7 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
             printf("未定义的method = %s \n", method);
             break;
         }
-        printf("sBuf = %s \n", sBuf);
+        //printf("sBuf = %s \n", sBuf);
         printf("%s sBuf = %s \n", __FUNCTION__, sBuf);
 
         send(clientSockfd, sBuf, strlen(sBuf), 0);
@@ -463,8 +460,6 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
                 frameSize -= startCode;
                 rtpSendH264Frame(serverRtpSockfd, clientIP, clientRtpPort,
                     rtpPacket, frame + startCode, frameSize);
-
-
 
                 Sleep(40);
                 //usleep(40000);//1000/25 * 1000

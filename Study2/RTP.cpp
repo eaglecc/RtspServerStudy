@@ -44,10 +44,11 @@ int rtpSendPacketOverTcp(int clientSockfd, struct RtpPacket* rtpPacket, uint32_t
 
     return ret;
 }
+
+// 采用UDP协议发送RTP包
 int rtpSendPacketOverUdp(int serverRtpSockfd, const char* ip, int16_t port, struct RtpPacket* rtpPacket, uint32_t dataSize)
 {
-
-    struct sockaddr_in addr;
+    struct sockaddr_in addr {};
     int ret;
 
     addr.sin_family = AF_INET;
@@ -58,6 +59,7 @@ int rtpSendPacketOverUdp(int serverRtpSockfd, const char* ip, int16_t port, stru
     rtpPacket->rtpHeader.timestamp = htonl(rtpPacket->rtpHeader.timestamp);
     rtpPacket->rtpHeader.ssrc = htonl(rtpPacket->rtpHeader.ssrc);
 
+    // UDP协议采用sendto函数发送数据
     ret = sendto(serverRtpSockfd, (char*)rtpPacket, dataSize + RTP_HEADER_SIZE, 0,
         (struct sockaddr*)&addr, sizeof(addr));
 
