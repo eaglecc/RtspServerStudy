@@ -10,77 +10,16 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <WinSock2.h>
-#include <WS2tcpip.h>
-#include <windows.h>
+#include <iostream>
 #include "RTP.h"
+#include "Socket.h"
+#include "RTSPUtils.h"
 
 #define H264_FILE_NAME   "../data/test.h264"
 #define SERVER_PORT      8554
 #define SERVER_RTP_PORT  55532
 #define SERVER_RTCP_PORT 55533
 #define BUF_MAX_SIZE     (1024*1024)
-
-static int createTcpSocket()
-{
-    int sockfd;
-    int on = 1;
-
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0)
-        return -1;
-
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const char*)&on, sizeof(on));
-
-    return sockfd;
-}
-
-static int createUdpSocket()
-{
-    int sockfd;
-    int on = 1;
-
-    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd < 0)
-        return -1;
-
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (const char*)&on, sizeof(on));
-
-    return sockfd;
-}
-
-static int bindSocketAddr(int sockfd, const char* ip, int port)
-{
-    struct sockaddr_in addr;
-
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = inet_addr(ip);
-
-    if (bind(sockfd, (struct sockaddr*)&addr, sizeof(struct sockaddr)) < 0)
-        return -1;
-
-    return 0;
-}
-
-static int acceptClient(int sockfd, char* ip, int* port)
-{
-    int clientfd;
-    socklen_t len = 0;
-    struct sockaddr_in addr;
-
-    memset(&addr, 0, sizeof(addr));
-    len = sizeof(addr);
-
-    clientfd = accept(sockfd, (struct sockaddr*)&addr, &len);
-    if (clientfd < 0)
-        return -1;
-
-    strcpy(ip, inet_ntoa(addr.sin_addr));
-    *port = ntohs(addr.sin_port);
-
-    return clientfd;
-}
 
 static inline int startCode3(char* buf)
 {
@@ -249,74 +188,6 @@ out:
 
 }
 
-
-static int handleCmd_OPTIONS(char* result, int cseq)
-{
-    sprintf(result, "RTSP/1.0 200 OK\r\n"
-        "CSeq: %d\r\n"
-        "Public: OPTIONS, DESCRIBE, SETUP, PLAY\r\n"
-        "\r\n",
-        cseq);
-
-    return 0;
-}
-
-static int handleCmd_DESCRIBE(char* result, int cseq, char* url)
-{
-    char sdp[500];
-    char localIp[100];
-
-    sscanf(url, "rtsp://%[^:]:", localIp);
-
-    sprintf(sdp, "v=0\r\n"
-        "o=- 9%ld 1 IN IP4 %s\r\n"
-        "t=0 0\r\n"
-        "a=control:*\r\n"
-        "m=video 0 RTP/AVP 96\r\n"
-        "a=rtpmap:96 H264/90000\r\n"
-        "a=control:track0\r\n",
-        time(NULL), localIp);
-
-    sprintf(result, "RTSP/1.0 200 OK\r\nCSeq: %d\r\n"
-        "Content-Base: %s\r\n"
-        "Content-type: application/sdp\r\n"
-        "Content-length: %zu\r\n\r\n"
-        "%s",
-        cseq,
-        url,
-        strlen(sdp),
-        sdp);
-
-    return 0;
-}
-
-static int handleCmd_SETUP(char* result, int cseq, int clientRtpPort)
-{
-    sprintf(result, "RTSP/1.0 200 OK\r\n"
-        "CSeq: %d\r\n"
-        "Transport: RTP/AVP;unicast;client_port=%d-%d;server_port=%d-%d\r\n"
-        "Session: 66334873\r\n"
-        "\r\n",
-        cseq,
-        clientRtpPort,
-        clientRtpPort + 1,
-        SERVER_RTP_PORT,
-        SERVER_RTCP_PORT);
-
-    return 0;
-}
-
-static int handleCmd_PLAY(char* result, int cseq)
-{
-    sprintf(result, "RTSP/1.0 200 OK\r\n"
-        "CSeq: %d\r\n"
-        "Range: npt=0.000-\r\n"
-        "Session: 66334873; timeout=10\r\n\r\n",
-        cseq);
-
-    return 0;
-}
-
 static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
 
     char method[40];
@@ -372,28 +243,28 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
         }
 
         if (!strcmp(method, "OPTIONS")) {
-            if (handleCmd_OPTIONS(sBuf, CSeq))
+            if (RTSPUtils::handleCmd_OPTIONS(sBuf, CSeq))
             {
                 printf("failed to handle options\n");
                 break;
             }
         }
         else if (!strcmp(method, "DESCRIBE")) {
-            if (handleCmd_DESCRIBE(sBuf, CSeq, url))
+            if (RTSPUtils::handleCmd_DESCRIBE(sBuf, CSeq, url))
             {
                 printf("failed to handle describe\n");
                 break;
             }
         }
         else if (!strcmp(method, "SETUP")) {
-            if (handleCmd_SETUP(sBuf, CSeq, clientRtpPort))
+            if (RTSPUtils::handleCmd_SETUP(sBuf, CSeq, clientRtpPort))
             {
                 printf("failed to handle setup\n");
                 break;
             }
 
-            serverRtpSockfd = createUdpSocket();
-            serverRtcpSockfd = createUdpSocket();
+            serverRtpSockfd = Socket::createUdpSocket();
+            serverRtcpSockfd = Socket::createUdpSocket();
 
             if (serverRtpSockfd < 0 || serverRtcpSockfd < 0)
             {
@@ -401,8 +272,8 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
                 break;
             }
 
-            if (bindSocketAddr(serverRtpSockfd, "0.0.0.0", SERVER_RTP_PORT) < 0 ||
-                bindSocketAddr(serverRtcpSockfd, "0.0.0.0", SERVER_RTCP_PORT) < 0)
+            if (Socket::bindSocketAddr(serverRtpSockfd, "0.0.0.0", SERVER_RTP_PORT) < 0 ||
+                Socket::bindSocketAddr(serverRtcpSockfd, "0.0.0.0", SERVER_RTCP_PORT) < 0)
             {
                 printf("failed to bind addr\n");
                 break;
@@ -410,7 +281,7 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
 
         }
         else if (!strcmp(method, "PLAY")) {
-            if (handleCmd_PLAY(sBuf, CSeq))
+            if (RTSPUtils::handleCmd_PLAY(sBuf, CSeq))
             {
                 printf("failed to handle play\n");
                 break;
@@ -492,33 +363,27 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
 
 int main(int argc, char* argv[])
 {
-    // Æô¶¯windows socket start
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-    {
-        printf("PC Server Socket Start Up Error \n");
-        return -1;
-    }
-    // Æô¶¯windows socket end
-
-    int rtspServerSockfd;
-
-
-    rtspServerSockfd = createTcpSocket();
-    if (rtspServerSockfd < 0)
-    {
-        WSACleanup();
-        printf("failed to create tcp socket\n");
+    Socket socketInstance;
+    int tcpSocket = Socket::createTcpSocket();
+    if (tcpSocket < 0) {
+        std::cerr << "Failed to create TCP socket" << std::endl;
         return -1;
     }
 
-    if (bindSocketAddr(rtspServerSockfd, "0.0.0.0", SERVER_PORT) < 0)
+    int udpSocket = Socket::createUdpSocket();
+    if (udpSocket < 0) {
+        std::cerr << "Failed to create UDP socket" << std::endl;
+        return -1;
+    }
+
+
+    if (Socket::bindSocketAddr(tcpSocket, "0.0.0.0", SERVER_PORT) < 0)
     {
         printf("failed to bind addr\n");
         return -1;
     }
 
-    if (listen(rtspServerSockfd, 10) < 0)
+    if (Socket::Listen(tcpSocket, 10) < 0)
     {
         printf("failed to listen\n");
         return -1;
@@ -531,7 +396,7 @@ int main(int argc, char* argv[])
         char clientIp[40];
         int clientPort;
 
-        clientSockfd = acceptClient(rtspServerSockfd, clientIp, &clientPort);
+        clientSockfd = Socket::acceptClient(tcpSocket, clientIp, &clientPort);
         if (clientSockfd < 0)
         {
             printf("failed to accept client\n");
@@ -542,7 +407,7 @@ int main(int argc, char* argv[])
 
         doClient(clientSockfd, clientIp, clientPort);
     }
-    closesocket(rtspServerSockfd);
+    Socket::Closesocket(tcpSocket);
 
     return 0;
 }

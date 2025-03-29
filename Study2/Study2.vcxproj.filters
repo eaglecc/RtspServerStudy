@@ -21,9 +21,21 @@
     <ClCompile Include="RTP.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Socket.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="RTSPUtils.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="RTP.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Socket.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="RTSPUtils.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
