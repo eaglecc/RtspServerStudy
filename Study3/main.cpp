@@ -1,7 +1,3 @@
-//
-// Created by sun on 2022/12/9.
-//
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -60,6 +56,7 @@ static int bindSocketAddr(int sockfd, const char* ip, int port) {
     return 0;
 }
 
+// ADTS头（7~9 字节）包含帧长度、编码参数等信息。
 struct AdtsHeader {
     unsigned int syncword;  //12 bit 同步字 '1111 1111 1111'，一个ADTS帧的开始
     uint8_t id;        //1 bit 0代表MPEG-4, 1代表MPEG-2。
@@ -85,6 +82,7 @@ struct AdtsHeader {
     uint8_t numberOfRawDataBlockInFrame; //2 bit
 };
 
+// 解析ADTS头
 static int parseAdtsHeader(uint8_t* in, struct AdtsHeader* res) {
     static int frame_number = 0;
     memset(res, 0, sizeof(*res));
@@ -125,11 +123,13 @@ static int rtpSendAACFrame(int socket, const char* ip, int16_t port,
     //打包文档：https://blog.csdn.net/yangguoyu8023/article/details/106517251/
     int ret;
 
+    // 前4个字节为特殊头
     rtpPacket->payload[0] = 0x00;
     rtpPacket->payload[1] = 0x10;
     rtpPacket->payload[2] = (frameSize & 0x1FE0) >> 5; //高8位
     rtpPacket->payload[3] = (frameSize & 0x1F) << 3; //低5位
 
+    // 偏移4个字节
     memcpy(rtpPacket->payload + 4, frame, frameSize);
 
     ret = rtpSendPacketOverUdp(socket, ip, port, rtpPacket, frameSize + 4);
@@ -371,6 +371,7 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
             uint8_t* frame;
             int ret;
 
+            // 打开一个音频文件
             FILE* fp = fopen(AAC_FILE_NAME, "rb");
             if (!fp) {
                 printf("读取 %s 失败\n", AAC_FILE_NAME);
@@ -392,11 +393,14 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
                 }
                 printf("fread ret=%d \n", ret);
 
+                // 解析ADTS头
                 if (parseAdtsHeader(frame, &adtsHeader) < 0)
                 {
                     printf("parseAdtsHeader err\n");
                     break;
                 }
+
+                // 读取包体的数据
                 ret = fread(frame, 1, adtsHeader.aacFrameLength - 7, fp);
                 if (ret <= 0)
                 {
@@ -404,6 +408,7 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
                     break;
                 }
 
+                // AAC数据完全是包体数据，adtsHeader.aacFrameLength - 7 不包括ADTS头
                 rtpSendAACFrame(serverRtpSockfd, clientIP, clientRtpPort,
                     rtpPacket, frame, adtsHeader.aacFrameLength - 7);
 
