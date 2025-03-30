@@ -48,7 +48,7 @@ int rtpSendPacketOverTcp(int clientSockfd, struct RtpPacket* rtpPacket, uint32_t
 // 采用UDP协议发送RTP包
 int rtpSendPacketOverUdp(int serverRtpSockfd, const char* ip, int16_t port, struct RtpPacket* rtpPacket, uint32_t dataSize)
 {
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr;
     int ret;
 
     addr.sin_family = AF_INET;

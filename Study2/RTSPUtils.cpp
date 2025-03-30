@@ -44,7 +44,7 @@ int RTSPUtils::handleCmd_SETUP(char* result, int cseq, int clientRtpPort)
 {
     sprintf(result, "RTSP/1.0 200 OK\r\n"
         "CSeq: %d\r\n"
-        "Transport: RTP/AVP;unicast;client_port=%d-%d;server_port=%d-%d\r\n"
+        "Transport: RTP/AVP;unicast;client_port=%d-%d;server_port=%d-%d;mode=play\r\n"
         "Session: 66334873\r\n"
         "\r\n",
         cseq,

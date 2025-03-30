@@ -1,7 +1,3 @@
-//
-// Created by sun on 10/11/21.
-//
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -60,30 +56,24 @@ static char* findNextStartCode(char* buf, int len)
 
 // 逐帧读取H264文件（NAL数据）
 static int getFrameFromH264File(FILE* fp, char* frame, int size) {
-    int rSize, frameSize;
-    char* nextStartCode;
-
-    if (fp == NULL)
+    if (fp == NULL || frame == NULL || size <= 0)
         return -1;
 
-    rSize = fread(frame, 1, size, fp);
+    int rSize = fread(frame, 1, size, fp);
+    if (rSize <= 0) {
+        return -1;
+    }
 
-    // 每个NALU 之间使用  00 00 01 或者 00 00 00 01 分隔开
     if (!startCode3(frame) && !startCode4(frame))
         return -1;
 
-    nextStartCode = findNextStartCode(frame + 3, rSize - 3);
-    if (!nextStartCode)
-    {
-        //lseek(fd, 0, SEEK_SET);
-        //frameSize = rSize;
+    char* nextStartCode = findNextStartCode(frame + 3, rSize - 3);
+    if (!nextStartCode) {
         return -1;
     }
-    else
-    {
-        frameSize = (nextStartCode - frame);
-        fseek(fp, frameSize - rSize, SEEK_CUR);
-    }
+
+    int frameSize = (nextStartCode - frame);
+    fseek(fp, frameSize - rSize, SEEK_CUR);
 
     return frameSize;
 }
@@ -199,6 +189,13 @@ static void doClient(int clientSockfd, const char* clientIP, int clientPort) {
     int clientRtpPort, clientRtcpPort;
     char* rBuf = (char*)malloc(BUF_MAX_SIZE);
     char* sBuf = (char*)malloc(BUF_MAX_SIZE);
+    if (!rBuf || !sBuf) {
+        printf("Memory allocation failed\n");
+        if (rBuf) free(rBuf);
+        if (sBuf) free(sBuf);
+        closesocket(clientSockfd);
+        return;
+    }
 
     while (true) {
         int recvLen;
@@ -396,6 +393,7 @@ int main(int argc, char* argv[])
         char clientIp[40];
         int clientPort;
 
+        // RTSP 是基于TCP的，所以需要accept函数接收客户端连接
         clientSockfd = Socket::acceptClient(tcpSocket, clientIp, &clientPort);
         if (clientSockfd < 0)
         {
