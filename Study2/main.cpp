@@ -11,7 +11,7 @@
 #include "Socket.h"
 #include "RTSPUtils.h"
 
-#define H264_FILE_NAME   "../data/test.h264"
+#define H264_FILE_NAME   "../data/star.h264"
 #define SERVER_PORT      8554
 #define SERVER_RTP_PORT  55532
 #define SERVER_RTCP_PORT 55533
